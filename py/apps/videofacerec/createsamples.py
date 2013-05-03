@@ -31,7 +31,7 @@ Keys:
 '''
 
 class App(object):
-    def __init__(self, video_src, dst_dir, subject_name, face_sz=(130,130), cascade_fn="/home/philipp/projects/opencv2/OpenCV-2.3.1/data/haarcascades/haarcascade_frontalface_alt2.xml"):
+    def __init__(self, video_src, dst_dir, subject_name, face_sz=(130,130), cascade_fn="haarcascade_frontalface_alt2.xml"):
         self.dst_dir = dst_dir
         self.subject_name = subject_name
         self.face_sz = face_sz

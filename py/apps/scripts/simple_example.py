@@ -72,11 +72,11 @@ def read_images(path, sz=None):
                     im = im.convert("L")
                     # resize to given size (if given)
                     if (sz is not None):
-                        im = im.resize(self.sz, Image.ANTIALIAS)
+                        im = im.resize(sz, Image.ANTIALIAS)
                     X.append(np.asarray(im, dtype=np.uint8))
                     y.append(c)
-                except IOError, (errno, strerror):
-                    print "I/O error({0}): {1}".format(errno, strerror)
+                except IOError as e:
+                    print "I/O error: %s '%s'" % (e, filename)
                 except:
                     print "Unexpected error:", sys.exc_info()[0]
                     raise
