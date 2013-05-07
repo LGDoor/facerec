@@ -1,4 +1,6 @@
 import numpy as np
+import scipy.linalg as linalg
+import scipy.spatial as spatial
 
 class AbstractFeature(object):
 
@@ -263,3 +265,93 @@ class LBP(AbstractFeature):
     
     def __repr__(self):
         return "Local Binary Pattern (operator=%s, grid=%s)" % (repr(self.lbp_operator), str(self.sz))
+
+class LPP(AbstractFeature):
+    def __init__(self, num_components=0, weight=1./3):
+        AbstractFeature.__init__(self);
+        self._num_components = num_components;
+        self._weight = weight;
+        
+    def compute(self, X, y):
+        X = asColumnMatrix(X);
+        y = np.asarray(y);
+        n = len(y)
+        c = len(np.unique(y))
+        # set a valid number of components
+        if self._num_components <= 0:
+            self._num_components = c
+        elif self._num_components > n:
+            self._num_components = n
+        # compute the weight matrix and Laplacian matrix
+        S = spatial.distance.pdist(X.T, 'sqeuclidean');
+        S = np.exp(-S/(self._weight*max(S)));
+        S = spatial.distance.squareform(S);
+        S[S < 0.0001] = 0;
+        D = np.diag(S.sum(axis=0));
+        L = D - S;        
+        # calculate the eigenvectors
+        eigenvalues, eigenvectors = linalg.eig(X.dot(L.dot(X.T)), X.dot(D.dot(X.T)));
+        # sort eigenvectors by their eigenvalue in descending order
+        idx = np.argsort(eigenvalues.real)
+        eigenvalues, eigenvectors = eigenvalues[idx], eigenvectors[:,idx]
+        # use only num_components
+        self._eigenvectors = np.matrix(eigenvectors[:, 0:self._num_components].real, dtype=np.float32, copy=True)
+        self._eigenvalues = np.array(eigenvalues[0:self._num_components].real, dtype=np.float32, copy=True)
+        # get the features from the given data
+        features = []
+        X = self._eigenvectors.T.dot(X);
+        for x in X.T:
+            features.append(x.T);
+        return features;
+    
+    def project(self, X):
+        return self._eigenvectors.T.dot(X)
+    
+    def extract(self,X):
+        X = np.asarray(X).reshape(-1,1)
+        return self.project(X)
+
+    def reconstruct(self, X):
+        return np.dot(self._eigenvectors, X)
+
+    @property
+    def num_components(self):
+        return self._num_components
+
+    @property
+    def eigenvectors(self):
+        return self._eigenvectors
+    
+    @property
+    def eigenvalues(self):
+        return self._eigenvalues
+    
+    def __repr__(self):
+        return "LPP (num_components=%d)" % (self._num_components)
+    
+class LaplacianFaces(ChainOperator):
+    def __init__(self, num_components=0, weight=1./3):
+        super(LaplacianFaces, self).__init__(PCA(), LPP(num_components, weight));
+
+    def compute(self, X, y):
+        n = len(y)
+        # reduce the dimension
+        self.model1._num_components = n;
+        X = super(LaplacianFaces, self).compute(X, y);
+        self._eigenvectors = np.dot(self.model1.eigenvectors, self.model2.eigenvectors);
+        return X;
+
+    @property
+    def num_components(self):
+        return self.model2._num_components
+        
+    @property
+    def eigenvalues(self):
+        return self.model2._eigenvalues
+    
+    @property
+    def eigenvectors(self):
+        return self._eigenvectors
+
+    def __repr__(self):
+        return "LaplacianFaces (num_components=%d, weight=%f)" % (self.model2._num_components, self.model2._weight);
