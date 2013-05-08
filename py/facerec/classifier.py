@@ -167,4 +167,34 @@ class SVM(AbstractClassifier):
     def __repr__(self):        
         return "Support Vector Machine (kernel_type=%s, C=%.2f,gamma=%.2f,p=%.2f,nu=%.2f,coef=%.2f,degree=%.2f)" % (KERNEL_TYPE[self.param.kernel_type], self.param.C, self.param.gamma, self.param.p, self.param.nu, self.param.coef0, self.param.degree)
 
+class NormalBayesClassifier(AbstractClassifier):
+    EPS = 0.00001;
+    def compute(self, X, y):
+        XR = asRowMatrix(X);
+        y = np.asarray(y)
+        self._mean = {};
+        self._cov = {};
+        self._trans = {};
+        self._const = {}; 
+        unique_labels = np.unique(y);
+        for label in unique_labels:
+            groupX = XR[y == label, :];
+            self._mean[label] = np.squeeze(np.asarray(groupX.mean(axis=0)));
+            self._cov[label] = np.zeros(self._mean[label].shape);
+            _cov = np.cov(groupX, rowvar=0);
+            self._cov[label], self._trans[label] = np.linalg.eig(_cov);
+            self._cov[label] = np.asarray(self._cov[label].real, dtype=np.float64);
+            self._cov[label] = np.abs(self._cov[label]);
+            self._cov[label][self._cov[label] < self.EPS] = self.EPS;
+            self._trans[label] = np.asarray(self._trans[label].real, dtype=np.float64);
+            self._const[label] = np.log(self._cov[label]).sum();
 
+    
+    def predict(self, q):
+        probs = {};
+        for label, mean in self._mean.iteritems():
+            trans_q = (q.T - mean).dot(self._trans[label]);
+            trans_q = np.squeeze(np.asarray(trans_q));            
+            probs[label] = -((trans_q**2/self._cov[label]).sum() + self._const[label])/2;
+        ret = (max(probs.iteritems(), key=op.itemgetter(1))[0], probs)
+        return ret;
